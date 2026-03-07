@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vlm-screen-recognition"
+version = "0.1.0"
+description = "Human-cognition-like screen recognition system"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy>=1.26,<3.0",
+    "opencv-python-headless>=4.9",
+    "Pillow>=10.0",
+    "PyYAML>=6.0",
+    "mss>=9.0",
+    "imagehash>=4.3",
+    "scikit-image>=0.22",
+    "ultralytics>=8.1",
+    "onnxruntime>=1.17",
+    "supervision>=0.25",
+    "mediapipe>=0.10.9",
+    "deepface>=0.0.89",
+    "litellm>=1.30",
+    "tiktoken>=0.6",
+]
+
+[project.optional-dependencies]
+cuda = ["onnxruntime-gpu"]
+directml = ["onnxruntime-directml"]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.23"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.scripts]
+vlm = "vlm.main:main"
