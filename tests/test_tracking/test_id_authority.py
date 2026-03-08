@@ -154,3 +154,37 @@ class TestIDAuthority:
         tracker.update(frame, dets)
         active = tracker.get_active_entities()
         assert len(active) <= 2
+
+    def test_min_hits_delays_new_ids(self):
+        """With min_hits=3, new_ids should be empty until 3rd frame."""
+        tracker = IDAuthority(max_age=5, min_hits=3)
+
+        box = (100, 100, 200, 300, 0.9, 0, "person")
+        for i in range(2):
+            frame = _make_frame(i)
+            dets = _make_detections(i, [box])
+            state = tracker.update(frame, dets)
+            assert state.new_ids == [], f"Frame {i}: new_ids should be empty before min_hits"
+
+        # Frame 2 (3rd detection): should now report as new
+        frame2 = _make_frame(2)
+        dets2 = _make_detections(2, [box])
+        state2 = tracker.update(frame2, dets2)
+        assert len(state2.new_ids) == 1
+
+    def test_ghost_entity_not_reported(self):
+        """Entity appearing for 1 frame then disappearing should not show in new_ids or lost_ids."""
+        tracker = IDAuthority(max_age=5, min_hits=3)
+
+        # Frame 0: entity appears
+        frame0 = _make_frame(0)
+        det0 = _make_detections(0, [(100, 100, 200, 300, 0.9, 0, "person")])
+        state0 = tracker.update(frame0, det0)
+        assert state0.new_ids == []
+
+        # Frame 1: entity disappears
+        frame1 = _make_frame(1)
+        det1 = _make_detections(1, [])
+        state1 = tracker.update(frame1, det1)
+        # Should NOT report lost_ids since entity was never confirmed
+        assert state1.lost_ids == []

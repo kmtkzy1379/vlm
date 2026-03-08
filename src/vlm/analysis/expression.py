@@ -53,7 +53,7 @@ class ExpressionDetector:
                 crop,
                 actions=["emotion"],
                 detector_backend=self._backend,
-                enforce_detection=False,
+                enforce_detection=True,
                 silent=True,
             )
 

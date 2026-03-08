@@ -165,6 +165,20 @@ class FrameDelta:
     entity_deltas: list[EntityDelta] = field(default_factory=list)
 
 
+# ── Narration pipeline types ──
+
+
+@dataclass(slots=True)
+class NarrationRequest:
+    deltas: list[FrameDelta]
+    key_crops: list[tuple[int, object]] | None
+    relations_text: str
+    memory_text: str
+    screenshot: Optional[np.ndarray]
+    frame_id: int
+    is_reset: bool = False  # sentinel for scene cut
+
+
 # ── Token budget ──
 
 

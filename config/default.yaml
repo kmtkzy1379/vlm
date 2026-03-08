@@ -11,13 +11,27 @@ change_detection:
   ssim_threshold_moderate: 0.80  # below this = MODERATE
   ssim_downscale: 256      # downscale to NxN for SSIM
   periodic_interval: 10    # force small model every N idle frames
+  scene_cut_count: 5        # MAJOR changes within window to trigger scene cut
+  scene_cut_window: 5.0     # window in seconds for scene cut detection
 
 detection:
   small_model: "yolov8n"   # lightweight, periodic checks
   mid_model: "yolov8m"     # detailed, scene changes
-  confidence_threshold: 0.35
+  confidence_threshold: 0.50
   nms_threshold: 0.45
   input_size: 640
+  min_box_area: 4000
+  class_whitelist:
+    - person
+    - laptop
+    - tv
+    - cell phone
+    - keyboard
+    - mouse
+    - monitor
+    - chair
+    - cup
+    - bottle
 
 tracking:
   max_age: 30              # frames before track is retired
@@ -43,7 +57,9 @@ saliency:
   enabled: true
   top_k: 5                   # max number of salient regions to return
   min_score: 0.3             # minimum saliency score (0-1)
-  temporal_weight: 0.3       # weight for temporal changes vs spatial saliency
+  min_region_area: 500       # minimum area for a salient region (pixels)
+  change_weight: 0.6         # weight for temporal change in combined score
+  spatial_weight: 0.4        # weight for spatial saliency in combined score
 
 optical_flow:
   enabled: true
@@ -57,6 +73,7 @@ optical_flow:
 scene_graph:
   enabled: true
   near_threshold: 150        # max distance for "near" relation (pixels)
+  overlap_iou_threshold: 0.15  # min IoU for "overlapping" relation
   containment_threshold: 0.7 # min overlap ratio for inside/contains
 
 working_memory:
@@ -72,6 +89,7 @@ aggregation:
   min_movement_threshold: 10 # ignore moves below N pixels
   batch_frames: 5           # accumulate N frames before LLM call
   max_tokens: 4000          # total token budget per LLM call
+  min_entity_lifetime: 2    # min frames_alive before reporting entity
 
 narration:
   model: "gemini/gemini-3.1-flash-lite-preview"

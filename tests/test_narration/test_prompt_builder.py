@@ -148,3 +148,12 @@ class TestPromptBuilder:
         msgs = pb.build(_make_delta(), "")
         system_text = msgs[0]["content"]
         assert "スクリーンショット" in system_text
+
+    def test_system_prompt_contains_noise_filter_rules(self):
+        pb = _make_builder()
+        msgs = pb.build(_make_delta(), "")
+        system_text = msgs[0]["content"]
+        assert "ノイズ" in system_text
+        assert "キャラクター" in system_text
+        assert "冷蔵庫" in system_text
+        assert "矛盾" in system_text

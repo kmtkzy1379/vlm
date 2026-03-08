@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 import time
 from typing import Iterator
 
@@ -66,6 +67,16 @@ class ScreenCapture:
             sleep_time = self._interval - elapsed
             if sleep_time > 0:
                 time.sleep(sleep_time)
+
+    def stream_until(self, stop_event: threading.Event) -> Iterator[CapturedFrame]:
+        """Yield frames at target FPS, stopping when *stop_event* is set."""
+        while not stop_event.is_set():
+            t0 = time.monotonic()
+            yield self.capture_one()
+            elapsed = time.monotonic() - t0
+            sleep_time = self._interval - elapsed
+            if sleep_time > 0:
+                stop_event.wait(timeout=sleep_time)
 
     def _maybe_downscale(self, image: np.ndarray) -> np.ndarray:
         h, w = image.shape[:2]

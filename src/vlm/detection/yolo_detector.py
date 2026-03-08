@@ -34,11 +34,15 @@ class YOLODetector(BaseDetector):
         nms_threshold: float = 0.45,
         input_size: int = 640,
         tier: str = "small",
+        class_whitelist: set[str] | None = None,
+        min_box_area: float = 0,
     ):
         self._tier = tier
         self._conf = conf_threshold
         self._nms = nms_threshold
         self._imgsz = input_size
+        self._whitelist = class_whitelist
+        self._min_area = min_box_area
 
         # Determine device string for ultralytics
         if device_info.device_type == DeviceType.CUDA:
@@ -83,6 +87,13 @@ class YOLODetector(BaseDetector):
                         class_name=cls_name,
                     )
                 )
+
+        # Apply class whitelist filter
+        if self._whitelist is not None:
+            boxes = [b for b in boxes if b.class_name in self._whitelist]
+        # Apply minimum box area filter
+        if self._min_area > 0:
+            boxes = [b for b in boxes if b.area >= self._min_area]
 
         logger.debug(
             "frame=%d tier=%s detections=%d time=%.1fms",

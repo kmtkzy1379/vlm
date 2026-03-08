@@ -192,3 +192,53 @@ class TestTemporalText:
         store = FeatureStore()
         encoder = DeltaEncoder(store)
         assert encoder.to_temporal_text([]) == ""
+
+
+class TestMinLifetime:
+    def test_new_entity_below_lifetime_not_reported(self):
+        store = FeatureStore()
+        encoder = DeltaEncoder(store, min_lifetime=3)
+
+        bbox = _bbox(100, 100, 200, 300)
+        entity = TrackedEntity(track_id=0, class_name="person", bbox=bbox, frames_alive=1)
+        state = TrackingState(0, {0: entity}, [0], [], [])
+        feats = {0: _features(0, 0, bbox)}
+        delta = encoder.encode(state, feats, ChangeLevel.MAJOR)
+
+        # Entity has frames_alive=1, min_lifetime=3 → should be skipped
+        new_deltas = [d for d in delta.entity_deltas if d.is_new]
+        assert len(new_deltas) == 0
+
+    def test_new_entity_above_lifetime_reported(self):
+        store = FeatureStore()
+        encoder = DeltaEncoder(store, min_lifetime=3)
+
+        bbox = _bbox(100, 100, 200, 300)
+        entity = TrackedEntity(track_id=0, class_name="person", bbox=bbox, frames_alive=5)
+        state = TrackingState(0, {0: entity}, [0], [], [])
+        feats = {0: _features(0, 0, bbox)}
+        delta = encoder.encode(state, feats, ChangeLevel.MAJOR)
+
+        new_deltas = [d for d in delta.entity_deltas if d.is_new]
+        assert len(new_deltas) == 1
+
+    def test_lost_entity_below_lifetime_silently_dropped(self):
+        store = FeatureStore()
+        encoder = DeltaEncoder(store, min_lifetime=3)
+
+        bbox = _bbox(100, 100, 200, 300)
+
+        # First, add entity with enough lifetime to be reported
+        entity0 = TrackedEntity(track_id=0, class_name="person", bbox=bbox, frames_alive=5)
+        state0 = TrackingState(0, {0: entity0}, [0], [], [])
+        feats0 = {0: _features(0, 0, bbox)}
+        encoder.encode(state0, feats0, ChangeLevel.MAJOR)
+
+        # Now entity 1 is lost with low lifetime
+        entity1 = TrackedEntity(track_id=1, class_name="person", bbox=bbox, frames_alive=1, is_active=False)
+        state1 = TrackingState(1, {1: entity1}, [], [1], [])
+        delta = encoder.encode(state1, {}, ChangeLevel.NONE)
+
+        # Entity 1 was never reported (below lifetime), so lost delta should not appear
+        lost_deltas = [d for d in delta.entity_deltas if d.is_lost]
+        assert len(lost_deltas) == 0

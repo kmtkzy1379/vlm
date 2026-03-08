@@ -74,3 +74,29 @@ MT/V5 (動き)      →  OpticalFlowMotion (オプティカルフロー)
 
 - [x] G1. prompt_builder.py 更新: シーングラフ・空間関係をコンパクト形式で含める ✅
 - [x] G2. テスト作成・実行 ✅ 8/8 passed (全体: 81/81 passed)
+
+### Phase H: 精度改善 - 検出ノイズ除去 + LLM品質向上
+誤検出の除去、幽霊エンティティの排除、LLMプロンプト改善による精度向上。
+
+- [x] H1. YOLOクラスホワイトリスト + 最小ボックスサイズフィルタ
+  - `yolo_detector.py`: `class_whitelist` と `min_box_area` パラメータ追加
+  - `main.py`: configからフィルタ設定を読み取り、両detectorに渡す
+  - `config/default.yaml`: `min_box_area: 4000`, ホワイトリスト10クラス
+  - テスト: `tests/test_detection/test_class_filter.py`
+- [x] H2. 信頼度閾値引き上げ (`confidence_threshold: 0.35` → `0.50`)
+- [x] H3. min_hits ゲート実装 (幽霊エンティティ除去)
+  - `id_authority.py`: `_hit_counts` / `_confirmed` で未確認エンティティをゲート
+  - 未確認で消失したエンティティは `new_ids` にも `lost_ids` にも出さない
+  - テスト: `test_min_hits_delays_new_ids`, `test_ghost_entity_not_reported`
+- [x] H4. DeepFace `enforce_detection=True` に修正 (偽の感情ラベル防止)
+- [x] H5. Scene Cut 閾値の設定可能化 + 緩和 (`3` → `5`)
+  - `main.py`: `scene_cut_count` と `scene_cut_window` を config から読み取り
+  - `config/default.yaml`: `scene_cut_count: 5`, `scene_cut_window: 5.0`
+- [x] H6. LLMプロンプト改善 (ノイズ除去ルール4項目追加)
+  - 短寿命エンティティ無視、スクリーンショット優先、キャラクター区別、不自然物体の考慮
+  - テスト: `test_system_prompt_contains_noise_filter_rules`
+- [x] H7. Delta Encoder 最低生存フレームフィルタ (`min_lifetime`)
+  - `delta_encoder.py`: `min_lifetime` パラメータ、新規/消失エンティティで適用
+  - `config/default.yaml`: `min_entity_lifetime: 2`
+  - テスト: `test_new_entity_below_lifetime_not_reported`, `test_lost_entity_below_lifetime_silently_dropped`
+- [x] H8. docs/plan.md 更新

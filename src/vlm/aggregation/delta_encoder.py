@@ -34,10 +34,12 @@ class DeltaEncoder:
         feature_store: FeatureStore,
         coordinate_precision: int = 5,
         min_movement: float = 10.0,
+        min_lifetime: int = 0,
     ):
         self._store = feature_store
         self._precision = coordinate_precision
         self._min_move = min_movement
+        self._min_lifetime = min_lifetime
         # Last reported features per entity (for delta computation)
         self._last_reported: dict[int, EntityFeatures] = {}
 
@@ -66,6 +68,11 @@ class DeltaEncoder:
             feat = features.get(eid)
             if feat is None:
                 continue
+            # Skip entities below minimum lifetime
+            if self._min_lifetime > 0:
+                entity = tracking_state.entities.get(eid)
+                if entity and entity.frames_alive < self._min_lifetime:
+                    continue
             delta = EntityDelta(
                 track_id=eid,
                 class_name=feat.attributes.get("class", "unknown"),
@@ -94,7 +101,16 @@ class DeltaEncoder:
         # Lost entities
         for eid in tracking_state.lost_ids:
             prev = self._last_reported.get(eid)
-            cls_name = prev.attributes.get("class", "unknown") if prev else "unknown"
+            # If never reported (below lifetime), silently drop
+            if prev is None:
+                continue
+            # Check lifetime for lost entities too
+            if self._min_lifetime > 0:
+                entity = tracking_state.entities.get(eid)
+                if entity and entity.frames_alive < self._min_lifetime:
+                    self._last_reported.pop(eid, None)
+                    continue
+            cls_name = prev.attributes.get("class", "unknown")
             deltas.append(
                 EntityDelta(
                     track_id=eid,

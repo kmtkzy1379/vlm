@@ -61,6 +61,10 @@ class IDAuthority:
         self._entities: dict[int, TrackedEntity] = {}
         self._prev_active_ids: set[int] = set()
 
+        # min_hits gate: tracks must be seen N times before being confirmed
+        self._hit_counts: dict[int, int] = {}
+        self._confirmed: set[int] = set()
+
     def update(
         self, frame: CapturedFrame, detections: DetectionResult
     ) -> TrackingState:
@@ -84,12 +88,23 @@ class IDAuthority:
         if tracked.tracker_id is not None:
             for i, sv_tracker_id in enumerate(tracked.tracker_id):
                 # Map supervision ID to our stable ID
-                if sv_tracker_id not in self._id_map:
+                is_brand_new = sv_tracker_id not in self._id_map
+                if is_brand_new:
                     self._id_map[sv_tracker_id] = self._next_id
                     self._next_id += 1
-                    new_ids.append(self._id_map[sv_tracker_id])
 
                 stable_id = self._id_map[sv_tracker_id]
+
+                # min_hits gate: count hits and only confirm after threshold
+                if stable_id not in self._confirmed:
+                    self._hit_counts[stable_id] = self._hit_counts.get(stable_id, 0) + 1
+                    if self._hit_counts[stable_id] >= self._min_hits:
+                        self._confirmed.add(stable_id)
+                        new_ids.append(stable_id)
+                elif is_brand_new:
+                    # Already confirmed (shouldn't happen for brand new), but handle it
+                    new_ids.append(stable_id)
+
                 current_ids.add(stable_id)
 
                 # Build bounding box
@@ -122,7 +137,7 @@ class IDAuthority:
                     is_active=True,
                 )
 
-        # Detect lost IDs
+        # Detect lost IDs (only report confirmed entities)
         lost_ids: list[int] = []
         for eid in self._prev_active_ids - current_ids:
             entity = self._entities.get(eid)
@@ -130,12 +145,18 @@ class IDAuthority:
                 entity.is_active = False
                 entity.frames_since_seen += 1
                 entity.crop = None  # Free memory
-                lost_ids.append(eid)
+                if eid in self._confirmed:
+                    lost_ids.append(eid)
+                else:
+                    # Unconfirmed entity vanished — silently remove
+                    self._hit_counts.pop(eid, None)
+                    self._entities.pop(eid, None)
 
-        # Detect recovered IDs (were lost, now active again)
+        # Detect recovered IDs (were lost, now active again; confirmed only)
         recovered_ids = [
             eid for eid in current_ids
             if eid not in new_ids and eid not in self._prev_active_ids
+            and eid in self._confirmed
         ]
 
         self._prev_active_ids = current_ids
@@ -169,6 +190,8 @@ class IDAuthority:
         self._id_map.clear()
         self._entities.clear()
         self._prev_active_ids.clear()
+        self._hit_counts.clear()
+        self._confirmed.clear()
         logger.info("All tracks reset")
 
     def get_entity(self, track_id: int) -> Optional[TrackedEntity]:
@@ -181,13 +204,19 @@ class IDAuthority:
 
     def _handle_empty_detections(self, frame: CapturedFrame) -> TrackingState:
         """Handle frame with no detections."""
-        lost_ids = list(self._prev_active_ids)
-        for eid in lost_ids:
+        lost_ids: list[int] = []
+        for eid in list(self._prev_active_ids):
             entity = self._entities.get(eid)
             if entity:
                 entity.is_active = False
                 entity.frames_since_seen += 1
                 entity.crop = None
+                if eid in self._confirmed:
+                    lost_ids.append(eid)
+                else:
+                    # Unconfirmed — silently remove
+                    self._hit_counts.pop(eid, None)
+                    self._entities.pop(eid, None)
 
         self._prev_active_ids = set()
 
